@@ -189,6 +189,8 @@ UserCostTime::startStat = () ->
 
 			approve.month = now_month
 
+			approve.space = spaceId
+
 			approve.created = now_date
 
 			delete approve.itemsSold
