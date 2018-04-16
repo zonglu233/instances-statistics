@@ -193,6 +193,12 @@ UserCostTime::startStat = () ->
 
 			approve.created = now_date
 
+			# 记录级权限
+			sharing = {
+				'o': [],	#当前用户所有的organization_id
+				'p': 'r'
+			}
+
 			delete approve.itemsSold
 
 			delete approve._id
