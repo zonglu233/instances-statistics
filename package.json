@@ -1,0 +1,14 @@
+{
+  "name": "steedos-instances-statistics",
+  "private": true,
+  "scripts": {
+    "start": "meteor run"
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.0.0-beta.44",
+    "meteor-node-stubs": "^0.3.2"
+  },
+  "devDependencies": {
+    "gulp": "^3.9.1"
+  }
+}
