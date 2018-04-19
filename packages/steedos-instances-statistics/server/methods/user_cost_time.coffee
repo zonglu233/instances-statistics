@@ -112,37 +112,45 @@ UserCostTime::startStat = () ->
 						"_approve.handler" : {$in: space_user_ids},
 						# 或：
 						$or:[
-							# 审批未结束的申请单
-							{"_approve.is_finished": false}
+							# 审批未结束的申请单,开始日期 小于 统计结束日期
+							{
+								$and:[
+									{"_approve.is_finished": false},
+									{"_approve.start_date": {$lt: end_date}}
+								]
+							},
 							# 审批结束的申请单，且结束日期是在[开始，结束]区间
-							$and:[
-								{"_approve.finish_date": {$gte: start_date}},
-								{"_approve.finish_date": {$lte: end_date}}
-							]
+							{
+								$and:[
+									{"_approve.finish_date": {$gt: start_date}},
+									{"_approve.finish_date": {$lt: end_date}}
+								]
+							}
+							# {"_approve.is_finished": false},
 						]
 					}
-				},
-				{
-					# $group:将集合中的文档分组，可用于统计结果。
-					$group : {
-						_id : {
-							"handler": "$_approve.handler",
-							"is_finished": "$_approve.is_finished"
-						}
-						# 当月已处理总耗时
-						month_finished_time: {
-							$sum: "$_approve.cost_time"
-						},
-						# 当月审批总数
-						month_finished_count: {
-							$sum: 1
-						},
-						# 审批开始时间
-						itemsSold: {
-							$push:  { start_date: "$_approve.start_date"}
-						}
-					}
 				}
+				# {
+				# 	# $group:将集合中的文档分组，可用于统计结果。
+				# 	$group : {
+				# 		_id : {
+				# 			"handler": "$_approve.handler",
+				# 			"is_finished": "$_approve.is_finished"
+				# 		}
+				# 		# 当月已处理总耗时
+				# 		month_finished_time: {
+				# 			$sum: "$_approve.cost_time"
+				# 		},
+				# 		# 当月审批总数
+				# 		month_finished_count: {
+				# 			$sum: 1
+				# 		},
+				# 		# 审批开始时间
+				# 		itemsSold: {
+				# 			$push:  { start_date: "$_approve.start_date"}
+				# 		}
+				# 	}
+				# }
 			]
 
 
@@ -152,8 +160,10 @@ UserCostTime::startStat = () ->
 	cursor = async_aggregate(pipeline, ins_approves)
 
 	console.log "ins_approves.length", ins_approves.length
+	console.log "-------------------------------------"
+	# console.log "ins_approves", ins_approves
 
-	if ins_approves.length > 0
+	if ins_approves?.length > 0
 
 		ins_approves_group = _.groupBy ins_approves, "is_finished"
 
@@ -199,19 +209,23 @@ UserCostTime::startStat = () ->
 		finished_approves = []
 
 	# 整理存入数据库中
-	if finished_approves.length > 0
+	if finished_approves?.length > 0
+		
+		now = new Date()
+
 		# 未处理文件总耗时
 		sumTime = (itemsSold)->
 			sum = 0
-			if itemsSold.length > 0
+			console.log itemsSold
+			if itemsSold?.length > 0
 				itemsSold.forEach (sold)->
-					sum += (now_date - sold?.start_date)
-			sum = sum / (1000*60*60)
+					minus = (now - sold?.start_date) / (1000*60*60)
+					sum += minus
 			return sum
 
 		finished_approves.forEach (approve)->
 
-			approve.inbox_time = sumTime(approve.itemsSold)
+			approve.inbox_time = sumTime(approve?.itemsSold)
 
 			approve.month_finished_time = approve.month_finished_time / (1000*60*60)
 			
@@ -224,13 +238,13 @@ UserCostTime::startStat = () ->
 
 			approve.user = userId
 
-			approve.year = now_year
+			approve.year = start_date.getFullYear()
 
-			approve.month = now_month
+			approve.month = start_date.getMonth()+1
 
 			approve.space = spaceId
 
-			approve.created = now_date
+			approve.created = now
 
 			org_ids = db.organizations.find({'users': userId}, {fields: {_id: 1}}).fetch()
 
@@ -244,7 +258,9 @@ UserCostTime::startStat = () ->
 
 			delete approve._id
 
-			approve.owner = userId
+			approve.owner = "5194c66ef4a563537a000003"
+
+			# approve.owner = userId
 
 			db.instances_statistic.upsert({
 				'user': approve.user,
