@@ -35,3 +35,9 @@ Meteor.startup ->
 InstancesStat.test = (space) ->
 	InstancesStat.run space
 
+
+# InstancesStat.init('h8BomfvK7cZhyg9ub', 2018, 1)
+InstancesStat.init = (space, year, month)->
+	userCostTime = new UserCostTime(space, year, month)
+	userCostTime.startStat()
+	

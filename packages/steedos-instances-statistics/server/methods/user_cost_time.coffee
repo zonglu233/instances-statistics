@@ -1,8 +1,10 @@
 logger = new Logger 'Instances Statistics -> UserCostTime'
 
 # space: 工作区ID
-UserCostTime = (space) ->
+UserCostTime = (space, year, month) ->
 	@space = space
+	@year = year || null
+	@month = month || null
 	return
 
 UserCostTime::startStat = () ->
@@ -12,13 +14,42 @@ UserCostTime::startStat = () ->
 
 	ins_approves = new Array()
 
-	# 开始日期是当月的一号
-	now_date = new Date()
-	now_year = now_date.getFullYear()
-	now_month = now_date.getMonth()+1
-	start_date = new Date("'" + now_year + "-" + now_month + "'")
-	# 结束日期是当月统计的当天
-	end_date = now_date
+	if @year and @month
+		console.log "指定"+@year+"年"+@month+"月"
+
+		def_date = new Date( @year + "-" + @month )
+
+		def_year = def_date.getFullYear()
+		def_month = def_date.getMonth() + 1
+
+		start_date = new Date( def_year + "-" + def_month )
+		end_date = new Date( def_year + "-" + def_month )
+		end_date.setMonth(end_date.getMonth()+1)
+
+		console.log "开始日期：" + start_date
+		console.log "结束日期：" + end_date
+
+	else
+		# 开始日期是当月的一号
+		now_date = new Date()
+
+		now_year = now_date.getFullYear()
+		now_month = now_date.getMonth() + 1
+		now_day = now_date.getDate()
+
+		console.log "不指定年月，默认是" + now_year+"年"+now_month+"月"
+
+		start_date = new Date( now_year + "-" + now_month )
+
+		# 如果统计日期是当月的1号，开始日期 = 统计日期 - 1个月 = 上月1号
+		if now_day == 1
+			start_date.setMonth(start_date.getMonth())
+
+		# 结束日期是当月统计的当天
+		end_date = now_date
+
+		console.log "开始日期：" + start_date
+		console.log "结束日期：" + end_date
 
 	query = {}
 
@@ -120,47 +151,49 @@ UserCostTime::startStat = () ->
 	# 管道在Unix和Linux中一般用于将当前命令的输出结果作为下一个命令的参数。
 	cursor = async_aggregate(pipeline, ins_approves)
 
-	# console.log "ins_approves.length", ins_approves.length
+	console.log "ins_approves.length", ins_approves.length
 
 	if ins_approves.length > 0
 
 		ins_approves_group = _.groupBy ins_approves, "is_finished"
 
 		# 审批完成的步骤
-		finished_approves = ins_approves_group[true]
+		finished_approves = ins_approves_group[true] || []
 
 		# 待审批的步骤
-		inbox_approves = ins_approves_group[false]
+		inbox_approves = ins_approves_group[false] || []
 
 		# 遍历已处理的列表
-		finished_approves.forEach (finished_approve)->
+		if finished_approves?.length > 0
+			finished_approves.forEach (finished_approve)->
 
-			inbox_approve = _.find(inbox_approves, (item ,index)->
-				# console.log '			item',item._id
-				# 待审批步骤里面的人员和审批完成步骤里面的人员一致
-				if item._id?.handler == finished_approve._id?.handler
-					inbox_approves.splice(index,1)
-					return item
-			)
+				inbox_approve = _.find(inbox_approves, (item ,index)->
+					# console.log '			item',item._id
+					# 待审批步骤里面的人员和审批完成步骤里面的人员一致
+					if item._id?.handler == finished_approve._id?.handler
+						inbox_approves.splice(index,1)
+						return item
+				)
 
-			# 本月待处理数量
-			finished_approve.inbox_count = inbox_approve?.month_finished_count||0
+				# 本月待处理数量
+				finished_approve.inbox_count = inbox_approve?.month_finished_count||0
 
-			# console.log finished_approve.inbox_count
+				# console.log finished_approve.inbox_count
 
-			delete finished_approve.is_finished	# 本来就是已完成
+				delete finished_approve.is_finished	# 本来就是已完成
 
-			finished_approve.itemsSold = inbox_approve?.itemsSold
-
+				finished_approve.itemsSold = inbox_approve?.itemsSold
+		
 		# 遍历剩余未处理的列表
-		inbox_approves?.forEach (inbox_approve)->
-			finished_approves.push({
-				_id: inbox_approve._id,
-				month_finished_time: 0,	#当月已处理总耗时
-				month_finished_count: 0,		#当月已完成的处理，本来就是0
-				inbox_count: inbox_approve.month_finished_count, 	#未完成数量
-				itemsSold: inbox_approve.itemsSold	#所有未审批的开始时间
-			})
+		if inbox_approves?.length > 0
+			inbox_approves?.forEach (inbox_approve)->
+				finished_approves.push({
+					_id: inbox_approve._id,
+					month_finished_time: 0,	#当月已处理总耗时
+					month_finished_count: 0,		#当月已完成的处理，本来就是0
+					inbox_count: inbox_approve.month_finished_count, 	#未完成数量
+					itemsSold: inbox_approve.itemsSold	#所有未审批的开始时间
+				})
 
 	else
 		finished_approves = []
@@ -173,17 +206,23 @@ UserCostTime::startStat = () ->
 			if itemsSold.length > 0
 				itemsSold.forEach (sold)->
 					sum += (now_date - sold?.start_date)
+			sum = sum / (1000*60*60)
 			return sum
 
 		finished_approves.forEach (approve)->
+
 			approve.inbox_time = sumTime(approve.itemsSold)
 
+			approve.month_finished_time = approve.month_finished_time / (1000*60*60)
+			
 			if (approve?.month_finished_count + approve?.inbox_count) > 0
 				approve.avg_cost_time = (approve?.month_finished_time + approve?.inbox_time)/(approve?.month_finished_count + approve?.inbox_count)
 			else
 				approve.avg_cost_time = 0
 
-			approve.user = approve?._id?.handler
+			userId = approve?._id?.handler
+
+			approve.user = userId
 
 			approve.year = now_year
 
@@ -193,9 +232,11 @@ UserCostTime::startStat = () ->
 
 			approve.created = now_date
 
+			org_ids = db.organizations.find({'users': userId}, {fields: {_id: 1}}).fetch()
+
 			# 记录级权限
-			sharing = {
-				'o': [],	#当前用户所有的organization_id
+			approve.sharing = {
+				'o': org_ids,	#当前用户所有的organization_id
 				'p': 'r'
 			}
 
@@ -203,7 +244,9 @@ UserCostTime::startStat = () ->
 
 			delete approve._id
 
-			db.instances_cost_time.upsert({
+			approve.owner = userId
+
+			db.instances_statistic.upsert({
 				'user': approve.user,
 				'year': approve.year,
 				'month': approve.month
