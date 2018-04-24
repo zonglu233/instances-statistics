@@ -1,0 +1,5 @@
+{
+  "cron": {
+    "-instances_stat": "*/1 * * * *"
+  }
+}
