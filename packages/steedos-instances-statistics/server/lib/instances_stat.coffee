@@ -31,12 +31,12 @@ Meteor.startup ->
 	if InstancesStat.rule
 		schedule.scheduleJob InstancesStat.rule, Meteor.bindEnvironment(InstancesStat.run)
 
-# InstancesStat.test('h8BomfvK7cZhyg9ub')
+# InstancesStat.test('Af8eM6mAHo7wMDqD3')
 InstancesStat.test = (space) ->
 	InstancesStat.run space
 
-
-# InstancesStat.init('h8BomfvK7cZhyg9ub', 2018, 1)
+# InstancesStat.init('h8BomfvK7cZhyg9ub', 2018, 4)
+# InstancesStat.init('Af8eM6mAHo7wMDqD3', 2018, 1)
 InstancesStat.init = (space, year, month)->
 	userCostTime = new UserCostTime(space, year, month)
 	userCostTime.startStat()

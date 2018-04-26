@@ -126,31 +126,30 @@ UserCostTime::startStat = () ->
 									{"_approve.finish_date": {$lt: end_date}}
 								]
 							}
-							# {"_approve.is_finished": false},
 						]
 					}
+				},
+				{
+					# $group:将集合中的文档分组，可用于统计结果。
+					$group : {
+						_id : {
+							"handler": "$_approve.handler",
+							"is_finished": "$_approve.is_finished"
+						}
+						# 当月已处理总耗时
+						month_finished_time: {
+							$sum: "$_approve.cost_time"
+						},
+						# 当月审批总数
+						month_finished_count: {
+							$sum: 1
+						},
+						# 审批开始时间
+						itemsSold: {
+							$push:  { start_date: "$_approve.start_date"}
+						}
+					}
 				}
-				# {
-				# 	# $group:将集合中的文档分组，可用于统计结果。
-				# 	$group : {
-				# 		_id : {
-				# 			"handler": "$_approve.handler",
-				# 			"is_finished": "$_approve.is_finished"
-				# 		}
-				# 		# 当月已处理总耗时
-				# 		month_finished_time: {
-				# 			$sum: "$_approve.cost_time"
-				# 		},
-				# 		# 当月审批总数
-				# 		month_finished_count: {
-				# 			$sum: 1
-				# 		},
-				# 		# 审批开始时间
-				# 		itemsSold: {
-				# 			$push:  { start_date: "$_approve.start_date"}
-				# 		}
-				# 	}
-				# }
 			]
 
 
@@ -159,8 +158,6 @@ UserCostTime::startStat = () ->
 	# 管道在Unix和Linux中一般用于将当前命令的输出结果作为下一个命令的参数。
 	cursor = async_aggregate(pipeline, ins_approves)
 
-	console.log "ins_approves.length", ins_approves.length
-	console.log "-------------------------------------"
 	# console.log "ins_approves", ins_approves
 
 	if ins_approves?.length > 0
@@ -216,7 +213,6 @@ UserCostTime::startStat = () ->
 		# 未处理文件总耗时
 		sumTime = (itemsSold)->
 			sum = 0
-			console.log itemsSold
 			if itemsSold?.length > 0
 				itemsSold.forEach (sold)->
 					minus = (now - sold?.start_date) / (1000*60*60)
@@ -258,9 +254,9 @@ UserCostTime::startStat = () ->
 
 			delete approve._id
 
-			approve.owner = "5194c66ef4a563537a000003"
+			# approve.owner = "5194c66ef4a563537a000003"
 
-			# approve.owner = userId
+			approve.owner = userId
 
 			db.instances_statistic.upsert({
 				'user': approve.user,
