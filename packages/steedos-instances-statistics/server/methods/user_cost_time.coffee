@@ -14,6 +14,8 @@ UserCostTime::startStat = () ->
 
 	ins_approves = new Array()
 
+	now_date = new Date()
+
 	if @year and @month
 		console.log "指定"+@year+"年"+@month+"月"
 
@@ -31,8 +33,7 @@ UserCostTime::startStat = () ->
 
 	else
 		# 开始日期是当月的一号
-		now_date = new Date()
-
+		
 		now_year = now_date.getFullYear()
 		now_month = now_date.getMonth() + 1
 		now_day = now_date.getDate()
@@ -42,6 +43,7 @@ UserCostTime::startStat = () ->
 		start_date = new Date( now_year + "-" + now_month )
 
 		# 如果统计日期是当月的1号，开始日期 = 统计日期 - 1个月 = 上月1号
+		# 每月的1号统计上个月的审批效率
 		if now_day == 1
 			start_date.setMonth(start_date.getMonth())
 
@@ -158,8 +160,6 @@ UserCostTime::startStat = () ->
 	# 管道在Unix和Linux中一般用于将当前命令的输出结果作为下一个命令的参数。
 	cursor = async_aggregate(pipeline, ins_approves)
 
-	# console.log "ins_approves", ins_approves
-
 	if ins_approves?.length > 0
 
 		ins_approves_group = _.groupBy ins_approves, "is_finished"
@@ -207,15 +207,13 @@ UserCostTime::startStat = () ->
 
 	# 整理存入数据库中
 	if finished_approves?.length > 0
-		
-		now = new Date()
 
-		# 未处理文件总耗时
+		# 未处理文件总耗时，截止到当月的最后一天
 		sumTime = (itemsSold)->
 			sum = 0
 			if itemsSold?.length > 0
 				itemsSold.forEach (sold)->
-					minus = (now - sold?.start_date) / (1000*60*60)
+					minus = (end_date - sold?.start_date) / (1000*60*60)
 					sum += minus
 			return sum
 
@@ -240,27 +238,31 @@ UserCostTime::startStat = () ->
 
 			approve.space = spaceId
 
-			approve.created = now
+			approve.created = now_date
 
-			space_user = db.space_users.findOne({'users': userId})
+			space_user = db.space_users.findOne({'space': spaceId,'user': userId})
 
 			org_ids = []
 			if space_user
 				org_ids = space_user?.organizations
 
 			# 记录级权限
-			approve.sharing = {
-				'o': org_ids,	#当前用户所有的organization_id
-				'p': 'r'
-			}
+			# approve.sharing = {
+			# 	'o': org_ids,	#当前用户所有的organization_id
+			# 	'p': 'r'
+			# }
+
+			approve.owner_organizations = org_ids
 
 			delete approve.itemsSold
 
 			delete approve._id
 
-			# approve.owner = "5194c66ef4a563537a000003"
+			# 权限有问题，管理员无法查看所有记录，临时这样改
 
-			approve.owner = userId
+			approve.owner = "hPgDcEd9vKQxwndQR"
+
+			# approve.owner = userId
 
 			db.instances_statistic.upsert({
 				'user': approve.user,
