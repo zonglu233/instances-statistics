@@ -242,7 +242,11 @@ UserCostTime::startStat = () ->
 
 			approve.created = now
 
-			org_ids = db.organizations.find({'users': userId}, {fields: {_id: 1}}).fetch()
+			space_user = db.space_users.findOne({'users': userId})
+
+			org_ids = []
+			if space_user
+				org_ids = space_user?.organizations
 
 			# 记录级权限
 			approve.sharing = {
