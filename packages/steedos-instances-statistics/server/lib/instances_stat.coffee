@@ -1,6 +1,6 @@
 schedule = Npm.require('node-schedule')
 
-logger = new Logger 'Instances Statistics -> run'
+logger = new Logger 'Instances_Statistics'
 
 InstancesStat = {}
 
@@ -14,26 +14,33 @@ InstancesStat = {}
 #	│    └──────────────────── minute (0 - 59)
 #	└───────────────────────── second (0 - 59, OPTIONAL)
 
-InstancesStat.rule = Meteor.settings?.cron?.instances_stat
+InstancesStat.rule = Meteor.settings?.instances_stat
 
 InstancesStat.costTime = (space)->
-	console.log "[#{new Date()}] run InstancesStat.costTime"
+	logger.info "[#{new Date()}] start run InstancesStat.costTime"
 	userCostTime = new UserCostTime(space)
 	userCostTime.startStat()
+	logger.info "[#{new Date()}] end run InstancesStat.costTime"
 
-InstancesStat.run = (space)->
+
+InstancesStat.run = ()->
 	try
+		space = InstancesStat.rule.space
 		InstancesStat.costTime space
 	catch  e
 		console.error "InstancesStat.costTime", e
 
 Meteor.startup ->
-	if InstancesStat.rule
-		schedule.scheduleJob InstancesStat.rule, Meteor.bindEnvironment(InstancesStat.run)
+	if InstancesStat.rule?.schedule
+		# 开始同步任务，同步任务的schedule
+		if InstancesStat.rule?.space
+			schedule.scheduleJob InstancesStat.rule.schedule, Meteor.bindEnvironment(InstancesStat.run)
+		else
+			logger.error "Miss settings: instances_stat.space"
+	else
+		logger.error "Miss settings: instances_stat.schedule"
 
-# InstancesStat.test('Af8eM6mAHo7wMDqD3')
-InstancesStat.test = (space) ->
-	InstancesStat.run space
+# ==================================================================
 
 # InstancesStat.init('h8BomfvK7cZhyg9ub', 2018, 4)
 # InstancesStat.init('Af8eM6mAHo7wMDqD3', 2018, 1)
@@ -41,3 +48,6 @@ InstancesStat.init = (space, year, month)->
 	userCostTime = new UserCostTime(space, year, month)
 	userCostTime.startStat()
 	
+# InstancesStat.test('Af8eM6mAHo7wMDqD3')
+InstancesStat.test = (space) ->
+	InstancesStat.run space

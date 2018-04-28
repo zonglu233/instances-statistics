@@ -1,4 +1,4 @@
-logger = new Logger 'Instances Statistics -> UserCostTime'
+logger = new Logger 'Instances_Statistics -> UserCostTime'
 
 # space: 工作区ID
 UserCostTime = (space, year, month) ->
@@ -8,7 +8,7 @@ UserCostTime = (space, year, month) ->
 	return
 
 UserCostTime::startStat = () ->
-	console.log 'UserCostTime.startStat()'
+	logger.info 'UserCostTime.startStat()'
 
 	spaceId = @space
 
@@ -17,7 +17,7 @@ UserCostTime::startStat = () ->
 	now_date = new Date()
 
 	if @year and @month
-		console.log "指定"+@year+"年"+@month+"月"
+		logger.info "指定"+@year+"年"+@month+"月"
 
 		def_date = new Date( @year + "-" + @month )
 
@@ -28,17 +28,13 @@ UserCostTime::startStat = () ->
 		end_date = new Date( def_year + "-" + def_month )
 		end_date.setMonth(end_date.getMonth()+1)
 
-		console.log "开始日期：" + start_date
-		console.log "结束日期：" + end_date
-
 	else
 		# 开始日期是当月的一号
-		
 		now_year = now_date.getFullYear()
 		now_month = now_date.getMonth() + 1
 		now_day = now_date.getDate()
 
-		console.log "不指定年月，默认是" + now_year+"年"+now_month+"月"
+		logger.info "不指定年月，默认是" + now_year+"年"+now_month+"月"
 
 		start_date = new Date( now_year + "-" + now_month )
 
@@ -50,8 +46,8 @@ UserCostTime::startStat = () ->
 		# 结束日期是当月统计的当天
 		end_date = now_date
 
-		console.log "开始日期：" + start_date
-		console.log "结束日期：" + end_date
+	logger.info "start_date", start_date
+	logger.info "end_date", end_date
 
 	query = {}
 
@@ -175,7 +171,6 @@ UserCostTime::startStat = () ->
 			finished_approves.forEach (finished_approve)->
 
 				inbox_approve = _.find(inbox_approves, (item ,index)->
-					# console.log '			item',item._id
 					# 待审批步骤里面的人员和审批完成步骤里面的人员一致
 					if item._id?.handler == finished_approve._id?.handler
 						inbox_approves.splice(index,1)
@@ -184,8 +179,6 @@ UserCostTime::startStat = () ->
 
 				# 本月待处理数量
 				finished_approve.inbox_count = inbox_approve?.month_finished_count||0
-
-				# console.log finished_approve.inbox_count
 
 				delete finished_approve.is_finished	# 本来就是已完成
 
@@ -217,16 +210,40 @@ UserCostTime::startStat = () ->
 					sum += minus
 			return sum
 
+		# 循环已处理的审批步骤
 		finished_approves.forEach (approve)->
 
-			approve.inbox_time = sumTime(approve?.itemsSold)
+			# 当月待处理的总耗时
+			inbox_time = sumTime(approve?.itemsSold)
 
-			approve.month_finished_time = approve.month_finished_time / (1000*60*60)
-			
-			if (approve?.month_finished_count + approve?.inbox_count) > 0
-				approve.avg_cost_time = (approve?.month_finished_time + approve?.inbox_time)/(approve?.month_finished_count + approve?.inbox_count)
+			# 当月待处理的平均耗时
+			if approve?.inbox_count > 0
+				inbox_avg = inbox_time/approve?.inbox_count
 			else
-				approve.avg_cost_time = 0
+				inbox_avg = 0
+
+			# 当月已处理的总耗时
+			month_finished_time = approve.month_finished_time / (1000*60*60)
+
+			# 当月已处理的平均耗时
+			if approve?.month_finished_count > 0
+				month_finished_avg = month_finished_time/approve?.month_finished_count
+			else
+				month_finished_avg = 0
+
+			# 总平均耗时
+			if (approve?.month_finished_count + approve?.inbox_count) > 0
+				avg_time = (month_finished_time + inbox_time)/(approve?.month_finished_count + approve?.inbox_count)
+			else
+				avg_time = 0
+
+			# double-保留2位
+			approve.inbox_time = Math.round(inbox_time*100)/100
+			approve.month_finished_time = Math.round(month_finished_time*100)/100
+			approve.inbox_avg = Math.round(inbox_avg*100)/100
+			approve.month_finished_avg = Math.round(month_finished_avg*100)/100
+			approve.avg_time = Math.round(avg_time*100)/100
+
 
 			userId = approve?._id?.handler
 
@@ -240,19 +257,11 @@ UserCostTime::startStat = () ->
 
 			approve.created = now_date
 
-			space_user = db.space_users.findOne({'space': spaceId,'user': userId})
+			space_user = db.space_users.findOne({'space': spaceId, 'user': userId})
 
-			org_ids = []
 			if space_user
-				org_ids = space_user?.organizations
-
-			# 记录级权限
-			# approve.sharing = {
-			# 	'o': org_ids,	#当前用户所有的organization_id
-			# 	'p': 'r'
-			# }
-
-			approve.owner_organizations = org_ids
+				approve.owner_organization = space_user?.organization
+				approve.owner_organizations = space_user?.organizations || []
 
 			delete approve.itemsSold
 
@@ -260,9 +269,7 @@ UserCostTime::startStat = () ->
 
 			# 权限有问题，管理员无法查看所有记录，临时这样改
 
-			approve.owner = "hPgDcEd9vKQxwndQR"
-
-			# approve.owner = userId
+			approve.owner = userId
 
 			db.instances_statistic.upsert({
 				'user': approve.user,

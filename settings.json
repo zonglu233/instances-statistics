@@ -1,5 +1,6 @@
 {
-  "cron": {
-    "-instances_stat": "*/1 * * * *"
-  }
+	"instances_stat":{
+		"space":"h8BomfvK7cZhyg9ub",
+		"schedule": "*/1 * * * *"
+	}
 }
